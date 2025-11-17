@@ -1,6 +1,8 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr, Field
+from database import create_document
 
 app = FastAPI()
 
@@ -12,13 +14,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class ContactMessage(BaseModel):
+    name: str = Field(..., min_length=2)
+    email: EmailStr
+    company: str | None = None
+    message: str = Field(..., min_length=10)
+
 @app.get("/")
 def read_root():
-    return {"message": "Hello from FastAPI Backend!"}
+    return {"message": "Marketing Consultant API running"}
 
 @app.get("/api/hello")
 def hello():
     return {"message": "Hello from the backend API!"}
+
+@app.post("/api/contact")
+def create_contact(msg: ContactMessage):
+    try:
+        # Persist to database in collection "contactmessage" (class name lowercased)
+        doc_id = create_document("contactmessage", msg)
+        return {"status": "ok", "id": doc_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test")
 def test_database():
@@ -58,7 +75,6 @@ def test_database():
         response["database"] = f"❌ Error: {str(e)[:50]}"
     
     # Check environment variables
-    import os
     response["database_url"] = "✅ Set" if os.getenv("DATABASE_URL") else "❌ Not Set"
     response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
     
